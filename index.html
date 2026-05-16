@@ -1,0 +1,391 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>일러스트 스타일 캐릭터 메이커</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Pretendard:wght@400;700&display=swap" rel="stylesheet">
+    <style>
+        body { font-family: 'Pretendard', sans-serif; background-color: #fff5f7; color: #444; }
+        .tab-active { background-color: #ff8fab !important; color: white !important; transform: translateY(-2px); box-shadow: 0 4px 12px rgba(255, 143, 171, 0.3); }
+        .item-card { transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1); cursor: pointer; border-radius: 20px; background: white; border: 2px solid #f0f0f0; position: relative; }
+        .item-card:hover { border-color: #ffc2d1; transform: translateY(-3px); box-shadow: 0 8px 20px rgba(0,0,0,0.05); }
+        .selected-item { border-color: #ff8fab !important; background: #fff9fa; }
+        #canvas-outer { position: sticky; top: 2rem; }
+        #canvas-container { position: relative; width: 100%; aspect-ratio: 1/1.25; background: #fff; border-radius: 32px; box-shadow: 0 20px 50px rgba(255, 182, 193, 0.2); overflow: hidden; }
+        .no-scrollbar::-webkit-scrollbar { display: none; }
+        .category-btn { @apply px-6 py-3 rounded-2xl bg-white text-gray-400 font-bold transition-all border border-gray-100 shadow-sm hover:text-pink-400; }
+        .color-dot { @apply w-8 h-8 rounded-full border-2 border-white shadow-sm cursor-pointer transition-transform hover:scale-125; }
+    </style>
+</head>
+<body class="p-4 md:p-8">
+
+<script>
+    // 일러스트 스타일을 위한 정교한 SVG 경로 정의
+    const ASSETS = {
+        bodyColor: ['#FFF8F0', '#FFE9D1', '#FFD8B1', '#F5CBA7', '#E5AA70'],
+        faceShape: [
+            { id: 'f1', name: '갸름한형', path: 'M50 35 C30 35 25 75 25 100 C25 125 38 142 50 142 C62 142 75 125 75 100 C75 75 70 35 50 35 Z', ear: true },
+            { id: 'f2', name: '둥근형', path: 'M50 35 C28 35 22 75 22 100 C22 130 35 145 50 145 C65 145 78 130 78 100 C78 75 72 35 50 35 Z', ear: true }
+        ],
+        bodyShape: [
+            { id: 'b1', name: '베이비돌', path: `
+                <!-- 목 -->
+                <path d="M46 135 L46 145 L54 145 L54 135" fill="currentColor"/>
+                <!-- 상체 -->
+                <path d="M42 145 Q50 142 58 145 L62 175 Q50 182 38 175 Z" fill="currentColor"/>
+                <!-- 다리 -->
+                <path d="M38 175 L40 225 Q45 230 50 225 L50 175 Z" fill="currentColor"/>
+                <path d="M50 175 L50 225 Q55 230 60 225 L62 175 Z" fill="currentColor"/>
+                <!-- 팔 -->
+                <path d="M42 146 L32 175 Q30 180 35 182 L42 155" fill="currentColor"/>
+                <path d="M58 146 L68 175 Q70 180 65 182 L58 155" fill="currentColor"/>
+            ` }
+        ],
+        eyes: [
+            { id: 'e1', name: '반짝눈', svg: '<g transform="translate(0,12)"><path d="M32 90 Q40 82 48 90" fill="none" stroke="#333" stroke-width="2"/><circle cx="40" cy="98" r="6" fill="#554433"/><circle cx="42" cy="95" r="2" fill="white"/><path d="M52 90 Q60 82 68 90" fill="none" stroke="#333" stroke-width="2"/><circle cx="60" cy="98" r="6" fill="#554433"/><circle cx="62" cy="95" r="2" fill="white"/></g>' },
+            { id: 'e2', name: '고양이눈', svg: '<g transform="translate(0,12)"><path d="M30 92 Q40 85 50 92" fill="none" stroke="#333" stroke-width="3"/><circle cx="40" cy="100" r="5" fill="#222"/><path d="M50 92 Q60 85 70 92" fill="none" stroke="#333" stroke-width="3"/><circle cx="60" cy="100" r="5" fill="#222"/></g>' },
+            { id: 'e3', name: '순둥눈', svg: '<g transform="translate(0,12)"><circle cx="38" cy="100" r="7" fill="#6d4c41"/><circle cx="40" cy="97" r="2.5" fill="white"/><circle cx="62" cy="100" r="7" fill="#6d4c41"/><circle cx="64" cy="97" r="2.5" fill="white"/></g>' },
+            { id: 'e4', name: '윙크', svg: '<g transform="translate(0,12)"><path d="M32 98 Q40 105 48 98" fill="none" stroke="#333" stroke-width="3"/><circle cx="60" cy="98" r="6" fill="#443322"/><circle cx="62" cy="95" r="2" fill="white"/></g>' }
+        ],
+        nose: [
+            { id: 'n1', name: '점코', svg: '<circle cx="50" cy="112" r="1.2" fill="#d4a373" opacity="0.6"/>' },
+            { id: 'n2', name: 'v라인코', svg: '<path d="M49 111 L50 113 L51 111" fill="none" stroke="#d4a373" stroke-width="1"/>' }
+        ],
+        mouth: [
+            { id: 'm1', name: '방긋', svg: '<path d="M46 125 Q50 130 54 125" fill="none" stroke="#e76f51" stroke-width="2" stroke-linecap="round"/>' },
+            { id: 'm2', name: '헤벌레', svg: '<path d="M45 125 Q50 135 55 125 Z" fill="#ffb7c5"/>' },
+            { id: 'm3', name: '삐죽', svg: '<path d="M46 128 Q50 124 54 128" fill="none" stroke="#e76f51" stroke-width="2"/>' },
+            { id: 'm4', name: '작은입', svg: '<circle cx="50" cy="126" r="2" fill="#ffccd5"/>' }
+        ],
+        hair: [
+            { id: 'h1', name: '긴 생머리', back: '<path d="M20 90 V230 Q50 240 80 230 V90" fill="#4a3728"/>', front: '<path d="M25 90 Q25 28 50 28 Q75 28 75 90 L78 110 Q50 85 22 110 Z" fill="#4a3728"/><path d="M30 40 Q50 35 70 40" fill="none" stroke="white" stroke-width="1" opacity="0.2"/>' },
+            { id: 'h2', name: '양갈래', back: '<circle cx="20" cy="110" r="15" fill="#ffc2d1"/><circle cx="80" cy="110" r="15" fill="#ffc2d1"/><path d="M10 110 Q5 180 20 210 M90 110 Q95 180 80 210" stroke="#ffc2d1" stroke-width="12" fill="none" stroke-linecap="round"/>', front: '<path d="M25 90 Q25 30 50 30 Q75 30 75 90 L78 105 Q50 90 22 105 Z" fill="#ffc2d1"/>' },
+            { id: 'h3', name: '숏 단발', back: '<path d="M22 90 Q50 130 78 90" fill="#6d4c41"/>', front: '<path d="M25 90 Q25 35 50 35 Q75 35 75 90 L80 115 L60 100 L50 110 L40 100 L20 115 Z" fill="#6d4c41"/>' },
+            { id: 'h4', name: '웨이브 롱', back: '<path d="M15 90 Q10 160 20 240 Q50 250 80 240 Q90 160 85 90 Z" fill="#d4a373"/>', front: '<path d="M25 90 Q25 30 50 30 Q75 30 75 90 L82 110 Q65 95 50 105 Q35 95 18 110 Z" fill="#d4a373"/>' }
+        ],
+        tops: [
+            { id: 't1', name: '세일러복', svg: `
+                <path d="M40 145 H60 L68 178 H32 Z" fill="white" stroke="#eee"/>
+                <path d="M35 145 L25 175 L35 178 L42 155" fill="white" stroke="#eee"/>
+                <path d="M65 145 L75 175 L65 178 L58 155" fill="white" stroke="#eee"/>
+                <path d="M38 145 Q50 160 62 145 L65 155 Q50 170 35 155 Z" fill="#4895ef"/>
+                <path d="M48 160 L50 165 L52 160 Z" fill="#f00"/>
+            ` },
+            { id: 't2', name: '오프숄더', svg: `
+                <path d="M35 155 Q50 150 65 155 L68 180 H32 Z" fill="#ffccd5"/>
+                <path d="M32 155 L25 175 L35 180" fill="#ffccd5"/>
+                <path d="M68 155 L75 175 L65 180" fill="#ffccd5"/>
+            ` },
+            { id: 't3', name: '후드티', svg: `
+                <path d="M40 145 Q50 140 60 145 L70 185 H30 Z" fill="#a2d2ff"/>
+                <circle cx="50" cy="145" r="12" fill="none" stroke="#a2d2ff" stroke-width="4"/>
+                <path d="M40 145 L25 175 L35 185 L45 155" fill="#a2d2ff"/>
+                <path d="M60 145 L75 175 L65 185 L55 155" fill="#a2d2ff"/>
+            ` },
+            { id: 't4', name: '가디건 셋업', svg: `
+                <path d="M40 145 H60 L65 180 H35 Z" fill="#e9edc9"/>
+                <path d="M50 145 V180" stroke="white" stroke-width="2"/>
+                <path d="M40 145 L25 175 L35 180" fill="#e9edc9"/>
+                <path d="M60 145 L75 175 L65 180" fill="#e9edc9"/>
+            ` }
+        ],
+        bottoms: [
+            { id: 'bt1', name: '플리츠 스커트', svg: `<path d="M32 178 H68 L78 215 Q50 225 22 215 Z" fill="#555"/><path d="M40 178 L35 215 M50 178 V220 M60 178 L65 215" stroke="rgba(255,255,255,0.1)"/>` },
+            { id: 'bt2', name: '하이웨스트 팬츠', svg: `<path d="M35 170 H65 V225 Q65 230 55 230 L52 180 H48 L45 230 Q35 230 35 225 Z" fill="#333"/>` },
+            { id: 'bt3', name: '데님 숏츠', svg: `<path d="M35 175 H65 V195 L55 200 L52 180 H48 L45 200 L35 195 Z" fill="#4895ef"/>` },
+            { id: 'bt4', name: '러플 스커트', svg: `<path d="M32 178 Q50 175 68 178 L75 205 Q50 215 25 205 Z" fill="#ffafcc"/><path d="M25 205 Q30 200 40 205 Q50 200 60 205 Q70 200 75 205" fill="none" stroke="white" stroke-width="2"/>` }
+        ],
+        sets: [
+            { id: 's1', name: '메이드복', svg: `
+                <path d="M40 145 H60 L75 220 Q50 235 25 220 Z" fill="#333"/>
+                <path d="M40 145 H60 L65 178 H35 Z" fill="white" opacity="0.8"/>
+                <path d="M30 175 Q50 185 70 175" fill="none" stroke="white" stroke-width="4"/>
+                <path d="M40 145 L25 175 L35 180" fill="#333"/>
+                <path d="M60 145 L75 175 L65 180" fill="#333"/>
+            ` },
+            { id: 's2', name: '딸기 원피스', svg: `
+                <path d="M40 145 Q50 140 60 145 L80 225 Q50 240 20 225 Z" fill="#ffb7c5"/>
+                <circle cx="35" cy="190" r="2" fill="#ff4d6d"/><circle cx="65" cy="205" r="2" fill="#ff4d6d"/><circle cx="50" cy="210" r="2" fill="#ff4d6d"/>
+                <path d="M40 145 L25 180 L35 185" fill="#ffb7c5"/>
+                <path d="M60 145 L75 180 L65 185" fill="#ffb7c5"/>
+            ` },
+            { id: 's3', name: '스포티 셋업', svg: `
+                <path d="M38 145 H62 V225 H55 V190 H45 V225 H38 Z" fill="#222"/>
+                <path d="M40 145 L28 175 L38 180" fill="#222"/>
+                <path d="M60 145 L72 175 L62 180" fill="#222"/>
+                <path d="M40 150 H60" stroke="#ff0" stroke-width="2"/>
+            ` }
+        ],
+        shoes: [
+            { id: 'sh1', name: '메리제인', svg: `<g fill="#333"><rect x="37" y="222" width="13" height="10" rx="3"/><rect x="50" y="222" width="13" height="10" rx="3"/></g>` },
+            { id: 'sh2', name: '리본구두', svg: `<g fill="#ff8fab"><rect x="37" y="222" width="13" height="10" rx="3"/><rect x="50" y="222" width="13" height="10" rx="3"/><circle cx="43" cy="223" r="2" fill="white"/><circle cx="57" cy="223" r="2" fill="white"/></g>` },
+            { id: 'sh3', name: '스니커즈', svg: `<g fill="#ddd"><rect x="37" y="224" width="15" height="10" rx="2"/><rect x="48" y="224" width="15" height="10" rx="2"/><path d="M37 230 H63" stroke="#999"/></g>` }
+        ],
+        accessories: [
+            { id: 'a1', name: '레이스 머리띠', svg: '<path d="M25 50 Q50 35 75 50" fill="none" stroke="white" stroke-width="6" opacity="0.8"/>' },
+            { id: 'a2', name: '안경', svg: '<g fill="none" stroke="#555" stroke-width="1.5"><circle cx="38" cy="100" r="10"/><circle cx="62" cy="100" r="10"/><path d="M48 100 H52"/></g>' },
+            { id: 'a3', name: '리본 핀', svg: '<text x="20" y="65" font-size="14">🎀</text>' },
+            { id: 'a4', name: '하트 귀걸이', svg: '<text x="22" y="115" font-size="8">❤️</text><text x="70" y="115" font-size="8">❤️</text>' },
+            { id: 'a5', name: '핸드백', svg: '<path d="M70 170 H85 V185 H70 Z" fill="#ff8fab"/><path d="M72 170 Q77 160 82 170" fill="none" stroke="#ff8fab" stroke-width="2"/>' }
+        ],
+        backgrounds: [
+            { id: 'bg1', name: '무광 화이트', color: '#ffffff', pattern: '' },
+            { id: 'bg2', name: '캔디 스팟', color: '#fff0f3', pattern: '<circle cx="20" cy="20" r="100" fill="#ffccd5" opacity="0.3"/><circle cx="80" cy="180" r="60" fill="#caffbf" opacity="0.2"/>' },
+            { id: 'bg3', name: '격자무늬', color: '#f8f9fa', pattern: '<path d="M0 0 H100 M0 20 H100 M0 40 H100" stroke="#eee" stroke-width="0.5" fill="none" transform="scale(5)"/>' }
+        ]
+    };
+</script>
+
+<div class="max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-12 gap-10">
+    <!-- 캐릭터 영역 -->
+    <div class="lg:col-span-5">
+        <div id="canvas-outer">
+            <div id="canvas-container">
+                <svg id="character-svg" viewBox="0 0 100 250" class="w-full h-full">
+                    <!-- 배경 -->
+                    <rect id="svg-bg-rect" width="100" height="250" fill="#fff" />
+                    <g id="svg-bg-pattern"></g>
+                    
+                    <!-- 캐릭터 본체 순서 정렬 -->
+                    <g id="layer-hair-back"></g>
+                    <g id="layer-shoes"></g>
+                    <g id="layer-body-base">
+                        <g id="svg-body-content"></g>
+                        <!-- 기본 언더웨어 -->
+                        <path d="M42 145 H58 L60 155 H40 Z" fill="white" opacity="0.9"/>
+                        <path d="M38 175 H62 L58 190 H42 Z" fill="white" opacity="0.9"/>
+                    </g>
+                    <g id="layer-bottom"></g>
+                    <g id="layer-top-set"></g>
+                    <g id="layer-face-base">
+                        <!-- 귀 포함 얼굴형 -->
+                        <path id="svg-face-shape" />
+                        <circle cx="25" cy="100" r="5" id="svg-ear-l" />
+                        <circle cx="75" cy="100" r="5" id="svg-ear-r" />
+                    </g>
+                    <g id="layer-face-features">
+                        <!-- 일러스트풍 홍조 -->
+                        <ellipse cx="32" cy="115" rx="6" ry="3" fill="#ffb3c1" opacity="0.4"/>
+                        <ellipse cx="68" cy="115" rx="6" ry="3" fill="#ffb3c1" opacity="0.4"/>
+                        <g id="svg-eyes"></g>
+                        <g id="svg-nose"></g>
+                        <g id="svg-mouth"></g>
+                    </g>
+                    <g id="layer-hair-front"></g>
+                    <g id="layer-accessories"></g>
+                </svg>
+            </div>
+
+            <div class="mt-8 flex gap-4">
+                <button onclick="randomize()" class="flex-1 bg-white hover:border-pink-300 border-2 border-gray-100 py-4 rounded-3xl font-bold shadow-sm transition-all flex items-center justify-center gap-2">
+                    <span>🎲</span> 랜덤 스타일
+                </button>
+                <button onclick="saveImage()" class="flex-1 bg-pink-400 hover:bg-pink-500 text-white py-4 rounded-3xl font-bold shadow-lg transition-all flex items-center justify-center gap-2">
+                    <span>✨</span> 완성 저장
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 메뉴 영역 -->
+    <div class="lg:col-span-7 flex flex-col h-[850px] bg-white/80 backdrop-blur-md rounded-[40px] shadow-2xl border border-white/50 overflow-hidden">
+        <!-- 상단 카테고리 -->
+        <div class="flex overflow-x-auto no-scrollbar p-8 gap-4 border-b border-pink-50">
+            <button onclick="showCat('body')" id="tab-body" class="category-btn tab-active">신체</button>
+            <button onclick="showCat('face')" id="tab-face" class="category-btn">얼굴</button>
+            <button onclick="showCat('hair')" id="tab-hair" class="category-btn">헤어</button>
+            <button onclick="showCat('top')" id="tab-top" class="category-btn">상의</button>
+            <button onclick="showCat('bottom')" id="tab-bottom" class="category-btn">하의</button>
+            <button onclick="showCat('set')" id="tab-set" class="category-btn">세트</button>
+            <button onclick="showCat('shoes')" id="tab-shoes" class="category-btn">신발</button>
+            <button onclick="showCat('acc')" id="tab-acc" class="category-btn">소품</button>
+            <button onclick="showCat('bg')" id="tab-bg" class="category-btn">배경</button>
+        </div>
+
+        <!-- 아이템 리스트 -->
+        <div id="item-list" class="flex-1 overflow-y-auto p-10 grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-6 content-start">
+            <!-- Items injected by JS -->
+        </div>
+    </div>
+</div>
+
+<script>
+    let state = {
+        bodyColor: ASSETS.bodyColor[0],
+        faceShape: ASSETS.faceShape[0].id,
+        bodyShape: ASSETS.bodyShape[0].id,
+        eyes: ASSETS.eyes[0].id,
+        nose: ASSETS.nose[0].id,
+        mouth: ASSETS.mouth[0].id,
+        hair: ASSETS.hair[0].id,
+        top: ASSETS.tops[0].id,
+        bottom: ASSETS.bottoms[0].id,
+        set: null,
+        shoes: ASSETS.shoes[0].id,
+        acc: [],
+        bg: ASSETS.backgrounds[0].id
+    };
+
+    function showCat(cat) {
+        document.querySelectorAll('.category-btn').forEach(b => b.classList.remove('tab-active'));
+        const tabMap = { body: 'body', face: 'face', hair: 'hair', top: 'top', bottom: 'bottom', set: 'set', shoes: 'shoes', acc: 'acc', bg: 'bg' };
+        document.getElementById('tab-' + tabMap[cat]).classList.add('tab-active');
+        
+        const list = document.getElementById('item-list');
+        list.innerHTML = '';
+
+        if(cat === 'body') {
+            renderTitle('피부 색상');
+            const colorFlex = document.createElement('div');
+            colorFlex.className = 'col-span-full flex gap-4 mb-6';
+            ASSETS.bodyColor.forEach(c => {
+                const dot = document.createElement('div');
+                dot.className = `color-dot ${state.bodyColor === c ? 'scale-125 border-pink-400' : ''}`;
+                dot.style.backgroundColor = c;
+                dot.onclick = () => { state.bodyColor = c; refresh(); showCat('body'); };
+                colorFlex.appendChild(dot);
+            });
+            list.appendChild(colorFlex);
+            renderTitle('캐릭터 비율');
+            renderItems(ASSETS.bodyShape, 'bodyShape');
+        } else if(cat === 'face') {
+            renderTitle('얼굴 윤곽'); renderItems(ASSETS.faceShape, 'faceShape');
+            renderTitle('눈망울'); renderItems(ASSETS.eyes, 'eyes');
+            renderTitle('코 모양'); renderItems(ASSETS.nose, 'nose');
+            renderTitle('입술'); renderItems(ASSETS.mouth, 'mouth');
+        } else if(cat === 'bg') {
+            renderTitle('배경 테마'); renderItems(ASSETS.backgrounds, 'bg');
+        } else {
+            const dataMap = { hair: ASSETS.hair, top: ASSETS.tops, bottom: ASSETS.bottoms, set: ASSETS.sets, shoes: ASSETS.shoes, acc: ASSETS.accessories };
+            renderItems(dataMap[cat], cat);
+        }
+    }
+
+    function renderTitle(text) {
+        const t = document.createElement('h3');
+        t.className = 'col-span-full font-bold text-gray-300 text-xs uppercase tracking-[0.2em] mt-6 mb-2';
+        t.innerText = text;
+        document.getElementById('item-list').appendChild(t);
+    }
+
+    function renderItems(items, key) {
+        const list = document.getElementById('item-list');
+
+        if(['top', 'bottom', 'set', 'acc'].includes(key)) {
+            const empty = document.createElement('div');
+            empty.className = 'item-card p-6 flex flex-col items-center justify-center border-dashed text-gray-300 font-bold text-sm';
+            empty.innerHTML = '<span>🚫</span><span>해제</span>';
+            empty.onclick = () => { 
+                if(key === 'acc') state.acc = []; 
+                else state[key] = null; 
+                refresh(); showCat(key); 
+            };
+            list.appendChild(empty);
+        }
+
+        items.forEach(item => {
+            const card = document.createElement('div');
+            const isSel = key === 'acc' ? state.acc.includes(item.id) : state[key] === item.id;
+            card.className = `item-card p-4 flex flex-col items-center gap-3 ${isSel ? 'selected-item' : ''}`;
+            card.onclick = () => {
+                if(key === 'acc') {
+                    if(state.acc.includes(item.id)) state.acc = state.acc.filter(i => i !== item.id);
+                    else state.acc.push(item.id);
+                } else {
+                    state[key] = item.id;
+                    if(key === 'set') { state.top = null; state.bottom = null; }
+                    if(key === 'top' || key === 'bottom') state.set = null;
+                }
+                refresh();
+                showCat(key);
+            };
+            
+            let preview = item.svg || item.front || (item.color ? `<rect width="100" height="200" fill="${item.color}"/>` : '');
+            card.innerHTML = `<div class="w-full aspect-[4/5]"><svg viewBox="10 20 80 180" class="w-full h-full">${preview}</svg></div><span class="text-[11px] font-bold text-gray-400">${item.name}</span>`;
+            list.appendChild(card);
+        });
+    }
+
+    function refresh() {
+        // 배경 세팅
+        const bg = ASSETS.backgrounds.find(b => b.id === state.bg);
+        document.getElementById('svg-bg-rect').setAttribute('fill', bg.color);
+        document.getElementById('svg-bg-pattern').innerHTML = bg.pattern;
+
+        // 신체 렌더링
+        const body = ASSETS.bodyShape.find(b => b.id === state.bodyShape);
+        const bodyCont = document.getElementById('svg-body-content');
+        bodyCont.innerHTML = body.path;
+        bodyCont.setAttribute('fill', state.bodyColor);
+
+        // 얼굴형 및 귀 색상
+        const face = ASSETS.faceShape.find(f => f.id === state.faceShape);
+        const faceBase = document.getElementById('svg-face-shape');
+        faceBase.setAttribute('d', face.path);
+        faceBase.setAttribute('fill', state.bodyColor);
+        document.getElementById('svg-ear-l').setAttribute('fill', state.bodyColor);
+        document.getElementById('svg-ear-r').setAttribute('fill', state.bodyColor);
+
+        // 헤어 레이어링
+        const hair = ASSETS.hair.find(h => h.id === state.hair);
+        document.getElementById('layer-hair-back').innerHTML = hair.back;
+        document.getElementById('layer-hair-front').innerHTML = hair.front;
+
+        // 의상 충돌 로직 반영
+        const top = ASSETS.tops.find(t => t.id === state.top);
+        const bot = ASSETS.bottoms.find(b => b.id === state.bottom);
+        const set = ASSETS.sets.find(s => s.id === state.set);
+        document.getElementById('layer-top-set').innerHTML = (top ? top.svg : '') + (set ? set.svg : '');
+        document.getElementById('layer-bottom').innerHTML = bot ? bot.svg : '';
+
+        // 표정
+        document.getElementById('svg-eyes').innerHTML = ASSETS.eyes.find(e => e.id === state.eyes).svg;
+        document.getElementById('svg-nose').innerHTML = ASSETS.nose.find(n => n.id === state.nose).svg;
+        document.getElementById('svg-mouth').innerHTML = ASSETS.mouth.find(m => m.id === state.mouth).svg;
+
+        // 신발 및 액세서리
+        document.getElementById('layer-shoes').innerHTML = ASSETS.shoes.find(s => s.id === state.shoes)?.svg || '';
+        document.getElementById('layer-accessories').innerHTML = state.acc.map(id => ASSETS.accessories.find(a => a.id === id).svg).join('');
+    }
+
+    function randomize() {
+        state.bodyColor = ASSETS.bodyColor[Math.floor(Math.random()*ASSETS.bodyColor.length)];
+        state.hair = ASSETS.hair[Math.floor(Math.random()*ASSETS.hair.length)].id;
+        state.eyes = ASSETS.eyes[Math.floor(Math.random()*ASSETS.eyes.length)].id;
+        state.mouth = ASSETS.mouth[Math.floor(Math.random()*ASSETS.mouth.length)].id;
+        if(Math.random() > 0.6) {
+            state.set = ASSETS.sets[Math.floor(Math.random()*ASSETS.sets.length)].id;
+            state.top = state.bottom = null;
+        } else {
+            state.set = null;
+            state.top = ASSETS.tops[Math.floor(Math.random()*ASSETS.tops.length)].id;
+            state.bottom = ASSETS.bottoms[Math.floor(Math.random()*ASSETS.bottoms.length)].id;
+        }
+        refresh();
+        showCat('body');
+    }
+
+    function saveImage() {
+        const svg = document.getElementById('character-svg');
+        const source = new XMLSerializer().serializeToString(svg);
+        const canvas = document.createElement('canvas');
+        canvas.width = 800; canvas.height = 1000;
+        const ctx = canvas.getContext('2d');
+        const img = new Image();
+        img.src = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(source);
+        img.onload = () => {
+            ctx.drawImage(img, 0, 0, 800, 1000);
+            const a = document.createElement('a');
+            a.download = `my_character_${Date.now()}.png`;
+            a.href = canvas.toDataURL('image/png');
+            a.click();
+        };
+    }
+
+    window.onload = () => { refresh(); showCat('body'); };
+</script>
+
+</body>
+</html>
